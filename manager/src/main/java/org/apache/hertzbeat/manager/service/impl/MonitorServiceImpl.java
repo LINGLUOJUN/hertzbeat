@@ -37,12 +37,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hertzbeat.alert.dao.AlertDefineBindDao;
 import org.apache.hertzbeat.collector.dispatch.DispatchConstants;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.constants.ExportFileConstants;
 import org.apache.hertzbeat.common.constants.NetworkConstants;
 import org.apache.hertzbeat.common.constants.SignConstants;
+import org.apache.hertzbeat.common.entity.grafana.GrafanaDashboard;
 import org.apache.hertzbeat.common.entity.job.Configmap;
 import org.apache.hertzbeat.common.entity.job.Job;
 import org.apache.hertzbeat.common.entity.job.Metrics;
@@ -60,6 +62,7 @@ import org.apache.hertzbeat.common.util.IntervalExpressionUtil;
 import org.apache.hertzbeat.common.util.IpDomainUtil;
 import org.apache.hertzbeat.common.util.JsonUtil;
 import org.apache.hertzbeat.common.util.SnowFlakeIdGenerator;
+import org.apache.hertzbeat.grafana.service.DashboardService;
 import org.apache.hertzbeat.manager.dao.CollectorDao;
 import org.apache.hertzbeat.manager.dao.CollectorMonitorBindDao;
 import org.apache.hertzbeat.manager.dao.MonitorDao;
@@ -87,7 +90,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -141,6 +143,9 @@ public class MonitorServiceImpl implements MonitorService {
     @Autowired
     private WarehouseService warehouseService;
 
+    @Autowired
+    private DashboardService dashboardService;
+
     private final Map<String, ImExportService> imExportServiceMap = new HashMap<>();
 
     public MonitorServiceImpl(List<ImExportService> imExportServiceList) {
@@ -176,7 +181,7 @@ public class MonitorServiceImpl implements MonitorService {
         }
         monitor.setStatus(CommonConstants.MONITOR_UP_CODE);
         // If the detection result fails, a detection exception is thrown
-        if (collectRep == null || collectRep.isEmpty()) {
+        if (CollectionUtils.isEmpty(collectRep)) {
             monitor.setStatus(CommonConstants.MONITOR_DOWN_CODE);
             throw new MonitorDetectException("Collect Timeout No Response");
         }
@@ -188,12 +193,12 @@ public class MonitorServiceImpl implements MonitorService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void addMonitor(Monitor monitor, List<Param> params, String collector) throws RuntimeException {
+    public void addMonitor(Monitor monitor, List<Param> params, String collector, GrafanaDashboard grafanaDashboard) throws RuntimeException {
         // Apply for monitor id
         long monitorId = SnowFlakeIdGenerator.generateId();
         // Init Set Default Tags: monitorId monitorName app
         List<Tag> tags = monitor.getTags();
-        if (tags == null) {
+        if (CollectionUtils.isEmpty(tags)) {
             tags = new LinkedList<>();
             monitor.setTags(tags);
         }
@@ -214,7 +219,7 @@ public class MonitorServiceImpl implements MonitorService {
         }).collect(Collectors.toList());
         appDefine.setConfigmap(configmaps);
 
-        long jobId = collector == null ? collectJobScheduling.addAsyncCollectJob(appDefine, null) :
+        long jobId = StringUtils.isBlank(collector) ? collectJobScheduling.addAsyncCollectJob(appDefine, null) :
                 collectJobScheduling.addAsyncCollectJob(appDefine, collector);
 
         try {
@@ -231,6 +236,10 @@ public class MonitorServiceImpl implements MonitorService {
             }
             monitor.setId(monitorId);
             monitor.setJobId(jobId);
+            // create grafana dashboard
+            if (monitor.getApp().equals(CommonConstants.PROMETHEUS) && grafanaDashboard != null && grafanaDashboard.isEnabled()) {
+                dashboardService.createOrUpdateDashboard(grafanaDashboard.getTemplate(), monitorId);
+            }
             monitorDao.save(monitor);
             paramDao.saveAll(params);
         } catch (Exception e) {
@@ -244,7 +253,7 @@ public class MonitorServiceImpl implements MonitorService {
     public void addNewMonitorOptionalMetrics(List<String> metrics, Monitor monitor, List<Param> params) {
         long monitorId = SnowFlakeIdGenerator.generateId();
         List<Tag> tags = monitor.getTags();
-        if (tags == null) {
+        if (CollectionUtils.isEmpty(tags)) {
             tags = new LinkedList<>();
             monitor.setTags(tags);
         }
@@ -357,11 +366,11 @@ public class MonitorServiceImpl implements MonitorService {
                 }
             }
         }
-        if (monitor.getTags() != null) {
+        if (!CollectionUtils.isEmpty(monitor.getTags())) {
             monitor.setTags(monitor.getTags().stream().distinct().collect(Collectors.toList()));
         }
         // the dispatch collector must exist if pin
-        if (StringUtils.hasText(monitorDto.getCollector())) {
+        if (StringUtils.isNotBlank(monitorDto.getCollector())) {
             Optional<Collector> optionalCollector = collectorDao.findCollectorByName(monitorDto.getCollector());
             if (optionalCollector.isEmpty()) {
                 throw new IllegalArgumentException("The pinned collector does not exist.");
@@ -371,14 +380,14 @@ public class MonitorServiceImpl implements MonitorService {
         }
         // Parameter definition structure verification
         List<ParamDefine> paramDefines = appService.getAppParamDefines(monitorDto.getMonitor().getApp());
-        if (paramDefines != null) {
+        if (!CollectionUtils.isEmpty(paramDefines)) {
             for (ParamDefine paramDefine : paramDefines) {
                 String field = paramDefine.getField();
                 Param param = paramMap.get(field);
                 if (paramDefine.isRequired() && (param == null || param.getParamValue() == null)) {
                     throw new IllegalArgumentException("Params field " + field + " is required.");
                 }
-                if (param != null && param.getParamValue() != null && StringUtils.hasText(param.getParamValue())) {
+                if (param != null && param.getParamValue() != null && StringUtils.isNotBlank(param.getParamValue())) {
                     switch (paramDefine.getType()) {
                         case "number":
                             double doubleValue;
@@ -503,7 +512,7 @@ public class MonitorServiceImpl implements MonitorService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void modifyMonitor(Monitor monitor, List<Param> params, String collector) throws RuntimeException {
+    public void modifyMonitor(Monitor monitor, List<Param> params, String collector, GrafanaDashboard grafanaDashboard) throws RuntimeException {
         long monitorId = monitor.getId();
         // Check to determine whether the monitor corresponding to the monitor id exists
         Optional<Monitor> queryOption = monitorDao.findById(monitorId);
@@ -517,7 +526,7 @@ public class MonitorServiceImpl implements MonitorService {
         }
         // Auto Update Default Tags: monitorName
         List<Tag> tags = monitor.getTags();
-        if (tags == null) {
+        if (CollectionUtils.isEmpty(tags)) {
             tags = new LinkedList<>();
             monitor.setTags(tags);
         }
@@ -564,6 +573,14 @@ public class MonitorServiceImpl implements MonitorService {
             }
             // force update gmtUpdate time, due the case: monitor not change, param change. we also think monitor change
             monitor.setGmtUpdate(LocalDateTime.now());
+            // update or open grafana dashboard
+            if (monitor.getApp().equals(CommonConstants.PROMETHEUS) && grafanaDashboard != null) {
+                if (grafanaDashboard.isEnabled()) {
+                    dashboardService.createOrUpdateDashboard(grafanaDashboard.getTemplate(), monitorId);
+                } else {
+                    dashboardService.closeGrafanaDashboard(monitorId);
+                }
+            }
             monitorDao.save(monitor);
             if (params != null) {
                 paramDao.saveAll(params);
@@ -621,13 +638,13 @@ public class MonitorServiceImpl implements MonitorService {
         if (monitorOptional.isPresent()) {
             Monitor monitor = monitorOptional.get();
             MonitorDto monitorDto = new MonitorDto();
-            monitorDto.setMonitor(monitor);
             List<Param> params = paramDao.findParamsByMonitorId(id);
             monitorDto.setParams(params);
             if (DispatchConstants.PROTOCOL_PROMETHEUS.equalsIgnoreCase(monitor.getApp())) {
                 List<CollectRep.MetricsData> metricsDataList = warehouseService.queryMonitorMetricsData(id);
                 List<String> metrics = metricsDataList.stream().map(CollectRep.MetricsData::getMetrics).collect(Collectors.toList());
                 monitorDto.setMetrics(metrics);
+                monitorDto.setGrafanaDashboard(dashboardService.getDashboardByMonitorId(id));
             } else {
                 Job job = appService.getAppDefine(monitor.getApp());
                 List<String> metrics = job.getMetrics().stream()
@@ -635,6 +652,7 @@ public class MonitorServiceImpl implements MonitorService {
                         .map(Metrics::getName).collect(Collectors.toList());
                 monitorDto.setMetrics(metrics);   
             }
+            monitorDto.setMonitor(monitor);
             Optional<CollectorMonitorBind> bindOptional = collectorMonitorBindDao.findCollectorMonitorBindByMonitorId(monitor.getId());
             bindOptional.ifPresent(bind -> monitorDto.setCollector(bind.getCollector()));
             return monitorDto;
@@ -647,14 +665,14 @@ public class MonitorServiceImpl implements MonitorService {
     public Page<Monitor> getMonitors(List<Long> monitorIds, String app, String name, String host, Byte status, String sort, String order, int pageIndex, int pageSize, String tag) {
         Specification<Monitor> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> andList = new ArrayList<>();
-            if (monitorIds != null && !monitorIds.isEmpty()) {
+            if (!CollectionUtils.isEmpty(monitorIds)) {
                 CriteriaBuilder.In<Long> inPredicate = criteriaBuilder.in(root.get("id"));
                 for (long id : monitorIds) {
                     inPredicate.value(id);
                 }
                 andList.add(inPredicate);
             }
-            if (StringUtils.hasText(app)) {
+            if (StringUtils.isNotBlank(app)) {
                 Predicate predicateApp = criteriaBuilder.equal(root.get("app"), app);
                 andList.add(predicateApp);
             }
@@ -663,7 +681,7 @@ public class MonitorServiceImpl implements MonitorService {
                 andList.add(predicateStatus);
             }
 
-            if (StringUtils.hasText(tag)) {
+            if (StringUtils.isNotBlank(tag)) {
                 String[] tagArr = tag.split(":");
                 String tagName = tagArr[0];
                 ListJoin<Monitor, Tag> tagJoin = root
@@ -681,11 +699,11 @@ public class MonitorServiceImpl implements MonitorService {
             Predicate andPredicate = criteriaBuilder.and(andList.toArray(andPredicates));
 
             List<Predicate> orList = new ArrayList<>();
-            if (StringUtils.hasText(host)) {
+            if (StringUtils.isNotBlank(host)) {
                 Predicate predicateHost = criteriaBuilder.like(root.get("host"), "%" + host + "%");
                 orList.add(predicateHost);
             }
-            if (StringUtils.hasText(name)) {
+            if (StringUtils.isNotBlank(name)) {
                 Predicate predicateName = criteriaBuilder.like(root.get("name"), "%" + name + "%");
                 orList.add(predicateName);
             }
@@ -717,7 +735,7 @@ public class MonitorServiceImpl implements MonitorService {
                         monitor.getStatus() != CommonConstants.MONITOR_PAUSED_CODE)
                 .peek(monitor -> monitor.setStatus(CommonConstants.MONITOR_PAUSED_CODE))
                 .collect(Collectors.toList());
-        if (!managedMonitors.isEmpty()) {
+        if (!CollectionUtils.isEmpty(managedMonitors)) {
             for (Monitor monitor : managedMonitors) {
                 collectJobScheduling.cancelAsyncCollectJob(monitor.getJobId());
             }
@@ -733,7 +751,7 @@ public class MonitorServiceImpl implements MonitorService {
                         monitor.getStatus() == CommonConstants.MONITOR_PAUSED_CODE)
                 .peek(monitor -> monitor.setStatus(CommonConstants.MONITOR_UP_CODE))
                 .collect(Collectors.toList());
-        if (!unManagedMonitors.isEmpty()) {
+        if (!CollectionUtils.isEmpty(unManagedMonitors)) {
             for (Monitor monitor : unManagedMonitors) {
                 // Construct the collection task Job entity
                 Job appDefine = appService.getAppDefine(monitor.getApp());
@@ -748,7 +766,7 @@ public class MonitorServiceImpl implements MonitorService {
                 List<Configmap> configmaps = params.stream().map(param ->
                         new Configmap(param.getField(), param.getParamValue(), param.getType())).collect(Collectors.toList());
                 List<ParamDefine> paramDefaultValue = appDefine.getParams().stream()
-                        .filter(item -> StringUtils.hasText(item.getDefaultValue()))
+                        .filter(item -> StringUtils.isNotBlank(item.getDefaultValue()))
                         .toList();
                 paramDefaultValue.forEach(defaultVar -> {
                     if (configmaps.stream().noneMatch(item -> item.getKey().equals(defaultVar.getField()))) {
@@ -775,7 +793,7 @@ public class MonitorServiceImpl implements MonitorService {
     @Override
     public List<AppCount> getAllAppMonitorsCount() {
         List<AppCount> appCounts = monitorDao.findAppsStatusCount();
-        if (appCounts == null) {
+        if (CollectionUtils.isEmpty(appCounts)) {
             return null;
         }
         //Statistical category information, calculate the number of corresponding states for each monitor
@@ -854,7 +872,7 @@ public class MonitorServiceImpl implements MonitorService {
                 List<Configmap> configmaps = params.stream().map(param -> new Configmap(param.getField(),
                         param.getParamValue(), param.getType())).collect(Collectors.toList());
                 List<ParamDefine> paramDefaultValue = appDefine.getParams().stream()
-                        .filter(item -> StringUtils.hasText(item.getDefaultValue()))
+                        .filter(item -> StringUtils.isNotBlank(item.getDefaultValue()))
                         .toList();
                 paramDefaultValue.forEach(defaultVar -> {
                     if (configmaps.stream().noneMatch(item -> item.getKey().equals(defaultVar.getField()))) {
@@ -897,7 +915,7 @@ public class MonitorServiceImpl implements MonitorService {
         monitor.setTags(newTags);
 
         monitor.setName(String.format("%s - copy", monitor.getName()));
-        addMonitor(monitor, params, null);
+        addMonitor(monitor, params, null, null);
     }
 
     private List<Tag> filterTags(List<Tag> tags) {
