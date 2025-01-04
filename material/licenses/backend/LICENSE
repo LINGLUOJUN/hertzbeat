@@ -257,10 +257,12 @@ The text of each license is the standard Apache 2.0 license.
     https://mvnrepository.com/artifact/io.grpc/grpc-protobuf/1.56.1 Apache-2.0
     https://mvnrepository.com/artifact/io.grpc/grpc-protobuf-lite/1.56.1 Apache-2.0
     https://mvnrepository.com/artifact/io.grpc/grpc-stub/1.56.1 Apache-2.0
-    https://mvnrepository.com/artifact/io.greptime/greptimedb-common/0.4.0
-    https://mvnrepository.com/artifact/io.greptime/greptimedb-grpc/0.4.0
-    https://mvnrepository.com/artifact/io.greptime/greptimedb-rpc/0.4.0
-    https://mvnrepository.com/artifact/io.greptime/greptimedb-protocol/0.4.0
+    https://mvnrepository.com/artifact/io.greptime/ingester-all/0.7.3 Apache-2.0
+    https://mvnrepository.com/artifact/io.greptime/ingester-common/0.7.3 Apache-2.0
+    https://mvnrepository.com/artifact/io.greptime/ingester-grpc/0.7.3 Apache-2.0
+    https://mvnrepository.com/artifact/io.greptime/ingester-protocol/0.7.3 Apache-2.0
+    https://mvnrepository.com/artifact/io.greptime/ingester-rpc/0.7.3 Apache-2.0
+    https://mvnrepository.com/artifact/io.greptime/greptimedb-proto/0.4.3 Apache-2.0
     https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api/0.11.2 Apache-2.0
     https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-impl/0.11.2 Apache-2.0
     https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-jackson/0.11.2 Apache-2.0
@@ -355,6 +357,8 @@ The text of each license is the standard Apache 2.0 license.
     https://mvnrepository.com/artifact/org.apache.tomcat.embed/tomcat-embed-el/10.1.19 Apache-2.0
     https://mvnrepository.com/artifact/org.apache.tomcat.embed/tomcat-embed-websocket/10.1.19 Apache-2.0
     https://mvnrepository.com/artifact/org.apache.xmlbeans/xmlbeans/3.1.0 Apache-2.0
+    https://mvnrepository.com/artifact/org.apache.plc4x/plc4j-api/0.12.0 Apache-2.0
+    https://mvnrepository.com/artifact/org.apache.plc4x/plc4j-driver-modbus/0.12.0 Apache-2.0
     https://mvnrepository.com/artifact/org.attoparser/attoparser/2.0.7.RELEASE Apache-2.0
     https://mvnrepository.com/artifact/org.freemarker/freemarker/2.3.32 Apache-2.0
     https://mvnrepository.com/artifact/org.flywaydb/flyway-core/10.11.1
@@ -428,7 +432,6 @@ The text of each license is the standard Apache 2.0 license.
     https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml/4.1.1 Apache-2.0
     https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml-schemas/4.1.1 Apache-2.0
     https://mvnrepository.com/artifact/xml-apis/xml-apis/1.4.01 Apache-2.0
-    https://mvnrepository.com/artifact/com.github.GreptimeTeam/greptime-proto/0.4.0
     https://mvnrepository.com/artifact/org.webjars/swagger-ui/5.10.3
     https://mvnrepository.com/artifact/com.google.flatbuffers/flatbuffers-java/1.12.0
     https://mvnrepository.com/artifact/com.vesoft/client/3.6.0
@@ -532,6 +535,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
     https://mvnrepository.com/artifact/org.java-websocket/Java-WebSocket/1.5.2
     https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/3.0.0
     https://mvnrepository.com/artifact/com.beetstra.jutf7/jutf7/1.0.0
+    https://mvnrepository.com/artifact/org.testcontainers/kafka/1.20.2 MIT
 
 ========================================================================
 MPL-1.1 licenses

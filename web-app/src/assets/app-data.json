@@ -49,12 +49,6 @@
           "link": "/setting/define"
         },
         {
-          "text": "Prometheus",
-          "i18n": "menu.monitor.prometheus",
-          "icon": "anticon-insert-row-below",
-          "link": "/monitors?app=prometheus"
-        },
-        {
           "key": "service",
           "text": "Service",
           "i18n": "menu.monitor.service",
@@ -190,9 +184,7 @@
           "text": "status",
           "i18n": "menu.advanced.status",
           "icon": "anticon-mobile",
-          "link": "/setting/status",
-          "badgeDot": true,
-          "badge": 1
+          "link": "/setting/status"
         },
         {
           "text": "collector",
